@@ -15,18 +15,21 @@ import time
 class MultiTurnAgent:
     """多轮对话代理类，处理连续对话操作"""
     
-    def __init__(self, use_screenshot=True):
+    def __init__(self, use_screenshot=True, verbose=1):
         """
         初始化多轮对话代理
         
         Args:
             use_screenshot (bool): 是否使用实际截图，False表示缸中脑模式
+            verbose (int): 日志详细程度，0=静默，1=普通，2=详细
         """
-        print("初始化UI-TARS代理...")
+        if verbose > 0:
+            print("初始化UI-TARS代理...")
         self.agent = UITarsAgent()
         self.screenshot_path = "current_screen.png"
         self.action_history = []  # 仅记录操作历史，不维护对话历史
         self.use_screenshot = use_screenshot
+        self.verbose = verbose
     
     def take_screenshot(self):
         """
@@ -36,13 +39,16 @@ class MultiTurnAgent:
             str|None: 截图路径或缸中脑模式下的None
         """
         if not self.use_screenshot:
-            print("缸中脑模式：不使用屏幕截图")
+            if self.verbose > 1:
+                print("缸中脑模式：不使用屏幕截图")
             return None
         
         try:
-            print("正在截取当前屏幕...")
+            if self.verbose > 1:
+                print("正在截取当前屏幕...")
             pyautogui.screenshot(self.screenshot_path)
-            print(f"屏幕截图已保存至: {self.screenshot_path}")
+            if self.verbose > 1:
+                print(f"屏幕截图已保存至: {self.screenshot_path}")
             return self.screenshot_path
         except Exception as e:
             print(f"截图失败: {e}")
@@ -50,7 +56,8 @@ class MultiTurnAgent:
     
     def process_initial_task(self, task):
         """处理初始任务"""
-        print(f"\n处理整体任务: {task}")
+        if self.verbose > 0:
+            print(f"\n处理整体任务: {task}")
         
         # 获取初始截图
         screenshot_path = self.take_screenshot()
@@ -96,14 +103,44 @@ class MultiTurnAgent:
     
     def _print_step_result(self, result):
         """打印步骤结果"""
+        if self.verbose == 0:
+            return
+            
         print("\n==================== 步骤结果 ====================")
-        print(f"模型思考: {result['thought']}")
-        print(f"执行动作: {json.dumps(result['action'], ensure_ascii=False)}")
-        print(f"执行结果: {json.dumps(result['execution'], ensure_ascii=False)}")
+        
+        # 详细模式才打印思考过程
+        if self.verbose > 1:
+            print(f"模型思考: {result['thought']}")
+            
+        # 简化动作输出
+        action_type = result['action']['type']
+        action_params = result['action']['params']
+        params_str = ""
+        
+        if action_params:
+            for k, v in action_params.items():
+                if isinstance(v, str) and len(v) > 30:
+                    v = v[:27] + "..."
+                params_str += f"{k}={v}, "
+            params_str = params_str.rstrip(", ")
+        
+        print(f"执行动作: {action_type}({params_str})")
+        
+        # 简化执行结果输出
+        if self.verbose > 1:
+            print(f"执行结果: {json.dumps(result['execution'], ensure_ascii=False)}")
+        else:
+            # 简洁模式只显示执行是否成功
+            success = result['execution'].get('success', False)
+            print(f"执行状态: {'成功' if success else '失败'}")
+            
         print("=================================================\n")
     
     def print_action_summary(self):
         """打印操作历史摘要"""
+        if self.verbose == 0:
+            return
+            
         print("\n============= 操作历史摘要 =============")
         for i, action in enumerate(self.action_history):
             params_str = ""
@@ -123,14 +160,14 @@ class MultiTurnAgent:
         params = action["params"] if "params" in action else {}
         
         feedback_templates = {
-            "click": "点击操作已完成，点击的位置是{start_box}",
-            "left_double": "双击操作已完成，双击的位置是{start_box}",
-            "right_single": "右键点击已完成，点击的位置是{start_box}",
-            "drag": "拖拽操作已完成，从{start_box}拖动到{end_box}",
-            "hotkey": "热键{key}已按下",
-            "type": "文本已输入：{content}",
-            "scroll": "已在{start_box}位置向{direction}方向滚动",
-            "wait": "等待操作完成，已暂停5秒",
+            "click": "点击操作已完成，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "left_double": "双击操作已完成，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "right_single": "右键点击已完成，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "drag": "拖拽操作已完成，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "hotkey": "热键{key}已按下，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "type": "文本已输入：{content}，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "scroll": "已在{start_box}位置向{direction}方向滚动，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
+            "wait": "等待操作完成，已暂停5秒，检查一下目标是否已完成，如果已完成，请继续下一步，如果未完成请检查一下为什么未完成",
             "finished": "任务已完成：{content}"
         }
         
@@ -147,23 +184,25 @@ class MultiTurnAgent:
         
         return feedback
 
-def run_session(mode="auto", use_screenshot=True):
+def run_session(mode="auto", use_screenshot=True, verbose=1):
     """
     运行会话，根据指定的模式和截图选项执行任务
     
     Args:
         mode (str): 会话模式，"auto"表示自动反馈，"interactive"表示交互式
         use_screenshot (bool): 是否使用截图，True使用实际截图，False为缸中脑模式
+        verbose (int): 日志详细程度，0=静默，1=普通，2=详细
     """
-    agent = MultiTurnAgent(use_screenshot=use_screenshot)
+    agent = MultiTurnAgent(use_screenshot=use_screenshot, verbose=verbose)
     
-    # 使用模式文字描述
-    mode_text = "交互式" if mode == "interactive" else "自动反馈"
-    screenshot_text = "使用实际截图" if use_screenshot else "缸中脑模式(无截图)"
-    
-    print("="*50)
-    print(f"UI-TARS {mode_text}会话 ({screenshot_text})")
-    print("="*50)
+    if verbose > 0:
+        # 使用模式文字描述
+        mode_text = "交互式" if mode == "interactive" else "自动反馈"
+        screenshot_text = "使用实际截图" if use_screenshot else "缸中脑模式(无截图)"
+        
+        print("="*50)
+        print(f"UI-TARS {mode_text}会话 ({screenshot_text})")
+        print("="*50)
     
     # 获取初始任务
     if mode == "interactive":
@@ -173,8 +212,9 @@ def run_session(mode="auto", use_screenshot=True):
             return
     else:
         # 自动模式下使用预设任务
-        initial_task = "打开记事本、输入一段文字、保存后关闭"
-        print(f"\n使用预设任务: {initial_task}")
+        initial_task = "打开微信，给文件传输助手发送一条消息：你好啊"
+        if verbose > 0:
+            print(f"\n使用预设任务: {initial_task}")
     
     # 处理初始任务
     result = agent.process_initial_task(initial_task)
@@ -186,7 +226,7 @@ def run_session(mode="auto", use_screenshot=True):
     max_steps = 10
     steps = 0
     
-    if mode == "auto":
+    if mode == "auto" and verbose > 0:
         print("\n开始执行自动反馈序列...")
     
     # 循环执行直到任务完成或达到最大步骤数
@@ -206,14 +246,16 @@ def run_session(mode="auto", use_screenshot=True):
                 # 使用自动生成的反馈
                 last_action = agent.action_history[-1]
                 feedback = agent.generate_feedback(last_action)
-                print(f"使用自动反馈: {feedback}")
+                if verbose > 0:
+                    print(f"使用自动反馈: {feedback}")
         else:
             # 自动模式下生成反馈
             last_action = agent.action_history[-1]
             feedback = agent.generate_feedback(last_action)
             
-            print(f"\n--- 步骤 {steps}/{max_steps} ---")
-            print(f"自动反馈: {feedback}")
+            if verbose > 0:
+                print(f"\n--- 步骤 {steps}/{max_steps} ---")
+                print(f"自动反馈: {feedback}")
             
             # 暂停一下，方便查看流程
             time.sleep(10)
@@ -223,7 +265,8 @@ def run_session(mode="auto", use_screenshot=True):
         
         # 检查是否完成任务
         if result and result['action']['type'] == 'finished':
-            print(f"\n任务已完成: {result['action']['params'].get('content', '任务完成')}")
+            if verbose > 0:
+                print(f"\n任务已完成: {result['action']['params'].get('content', '任务完成')}")
             if mode == "interactive":
                 cont = input("\n任务已标记为完成，是否继续? (y/n): ")
                 if cont.lower() != 'y':
@@ -244,11 +287,14 @@ if __name__ == "__main__":
                       help='运行模式：auto自动反馈，interactive交互式')
     parser.add_argument('--screenshot', choices=['true', 'false'], default='true',
                       help='是否使用截图：true使用实际截图，false缸中脑模式')
+    parser.add_argument('--verbose', type=int, choices=[0, 1, 2], default=1,
+                      help='日志详细程度：0=静默，1=普通，2=详细')
     
     args = parser.parse_args()
     
     mode = args.mode
     use_screenshot = args.screenshot.lower() == 'true'
+    verbose = args.verbose
     
     # 运行会话
-    run_session(mode=mode, use_screenshot=use_screenshot) 
+    run_session(mode=mode, use_screenshot=use_screenshot, verbose=verbose) 

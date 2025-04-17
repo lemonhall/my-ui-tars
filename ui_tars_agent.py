@@ -54,7 +54,7 @@ class UITarsAgent:
             debug_mode=True,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
-            num_history_responses=5,
+            num_history_responses=20,
         )
     
     def _get_instructions(self):
