@@ -2,6 +2,7 @@ import pyautogui
 import time
 import re
 import logging
+import pyperclip  # 添加剪贴板支持
 
 class UITarsExecutor:
     """
@@ -293,7 +294,7 @@ class UITarsExecutor:
     
     def _execute_type(self, params):
         """
-        执行键盘输入操作
+        执行键盘输入操作，使用剪贴板方式支持中文输入
         
         Args:
             params (dict): 操作参数
@@ -307,13 +308,51 @@ class UITarsExecutor:
         
         self.logger.info(f"键盘输入: {content}")
         
-        # 使用pyautogui的write函数
-        pyautogui.write(content)
+        # 添加短暂延迟，确保输入框已准备好接收输入
+        time.sleep(0.5)
         
-        return {
-            "status": "success", 
-            "message": f"键盘输入操作成功执行，内容: {content}"
-        }
+        # 检查是否需要在输入后按回车（如果内容以\n结尾）
+        press_enter = False
+        if content.endswith('\n'):
+            content = content[:-1]  # 移除\n
+            press_enter = True
+        
+        # 保存当前剪贴板内容
+        try:
+            original_clipboard = pyperclip.paste()
+        except:
+            original_clipboard = ""
+        
+        # 使用剪贴板方式输入文本（尤其适用于中文等非ASCII字符）
+        try:
+            # 复制内容到剪贴板
+            pyperclip.copy(content)
+            time.sleep(0.2)  # 短暂等待确保复制成功
+            
+            # 使用热键粘贴
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.3)  # 等待粘贴完成
+            
+            # 如果需要回车，按回车键
+            if press_enter:
+                time.sleep(0.2)  # 在按回车前稍作等待
+                self.logger.info("按下回车键")
+                pyautogui.press('enter')
+            
+            # 恢复原来的剪贴板内容
+            pyperclip.copy(original_clipboard)
+            
+            # 完成后再等待一下，让系统有时间处理输入
+            time.sleep(0.3)
+            
+            return {
+                "status": "success", 
+                "message": f"键盘输入操作成功执行，内容: {content}" + (" (已按回车)" if press_enter else "")
+            }
+        except Exception as e:
+            # 恢复原来的剪贴板内容
+            pyperclip.copy(original_clipboard)
+            return {"status": "error", "message": f"键盘输入失败: {str(e)}"}
     
     def _execute_scroll(self, params):
         """

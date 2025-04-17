@@ -140,7 +140,7 @@ if __name__ == "__main__":
     agent = UITarsAgent()
     
     # 简单测试
-    task = "最小化当前的IDE"
+    task = "点击发送按钮"
     
     print(f"处理任务: {task}")
     
