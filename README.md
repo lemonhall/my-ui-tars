@@ -19,6 +19,10 @@ my-ui-tars 是一个基于 [Agno](https://github.com/agumelar/agno) 框架的UI�
 - OpenAI 库 (≥1.75.0)
 - SQLAlchemy (≥2.0.40)
 - Uvicorn (≥0.34.1)
+- PyAutoGUI (≥0.9.54)
+- PyGetWindow (≥0.0.9)
+- PyYAML (≥6.0.1)
+- Pillow (≥10.2.0)
 - DeepSeek 模型 API（但实际链接的为字节跳动，火山引擎下的UI-TARS模型，该模型为qwen-vl视觉模型系列）
 
 ## 安装指南
@@ -51,6 +55,8 @@ source .venv/bin/activate
 
 ```bash
 pip install -e .
+# 或者手动安装依赖
+pip install agno>=1.3.2 fastapi>=0.115.12 openai>=1.75.0 sqlalchemy>=2.0.40 uvicorn>=0.34.1 pyautogui>=0.9.54 pygetwindow>=0.0.9 pyyaml>=6.0.1 pillow>=10.2.0
 ```
 
 4. 配置 DeepSeek API 密钥：
@@ -119,7 +125,7 @@ http://localhost:8000
 |-------------|-------------|--------------------------|-------------------------------------------------------------------------|
 | click       | 点击         | start_box               | `click(start_box='<bbox>859 950 859 950</bbox>')`                      |
 | left_double | 左键双击     | start_box               | `left_double(start_box='<bbox>859 950 859 950</bbox>')`                 |
-| right_single| 右键单击     | start_box               | `right_sigle(start_box='<bbox>859 950 859 950</bbox>')`                |
+| right_single| 右键单击     | start_box               | `right_single(start_box='<bbox>859 950 859 950</bbox>')`                |
 | drag        | 拖拽         | start_box \n end_box    | `drag(start_box='<bbox>768 150 768 150</bbox>', end_box='<bbox>79 150 79 150</bbox>')` |
 | hotkey      | 热键         | key                     | `hotkey(key='ctrl a')`                                                  |
 | type        | 键盘输入     | content                 | `type(content='北京天气怎么样')`                                        |
@@ -127,8 +133,6 @@ http://localhost:8000
 | wait        | 等待         |                         | `wait()`                                                               |
 | finished    | 完成         | content                 | `finished(content='todo.txt已打开')`                                   |
 ```
-
-注：表格中"右键单机"对应的输出示例似乎有误，应该是`right_single`而不是`left_double`，但按照您的要求未做内容修改。
 
 
 ## 模型输出坐标值说明：
@@ -152,6 +156,32 @@ Y绝对坐标 = Y相对坐标 × 图像高度
 X绝对坐标为：round(1920*235/1000)=451
 Y绝对坐标为：round(1080*512/1000)=553
 最终得到的绝对坐标为(451, 553)
+
+## 系统设计原则
+
+本项目遵循单一职责原则，将系统功能划分为多个模块，每个模块负责特定的功能：
+
+1. **UITarsAgent (ui_tars_agent.py)**
+   - 负责与模型进行交互
+   - 处理用户任务和截图输入
+   - 管理整体工作流程
+   - 调用解析器和执行器组件
+
+2. **UITarsParser (ui_tars_parser.py)**
+   - 负责解析模型生成的文本输出
+   - 提取思考过程和动作指令
+   - 将文本格式的动作转换为结构化数据
+
+3. **UITarsExecutor (ui_tars_executor.py)**
+   - 负责执行实际的UI操作
+   - 处理坐标转换（从相对坐标到绝对坐标）
+   - 封装所有与屏幕交互相关的功能
+   - 实现各种操作（点击、拖拽、输入等）
+
+这种模块化设计有以下优势：
+- 每个组件职责明确，代码更易于维护
+- 组件之间松耦合，方便单独测试和替换
+- 避免功能重复，如坐标转换只在执行器中实现
 
 ## 许可证
 

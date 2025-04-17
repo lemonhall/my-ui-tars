@@ -2,6 +2,7 @@ from ui_tars_parser import UITarsParser
 from agno.agent import Agent, RunResponse
 from agno.models.deepseek import DeepSeek
 from agno.media import Image
+from ui_tars_executor import UITarsExecutor
 import os
 import time
 import pyautogui
@@ -32,6 +33,9 @@ class UITarsAgent:
             
         # 初始化解析器
         self.parser = UITarsParser()
+        
+        # 初始化执行器
+        self.executor = UITarsExecutor()
         
         # 初始化Agno模型和代理
         self.model = DeepSeek(
@@ -115,7 +119,7 @@ finished(content='xxx') # Use escape characters \\', \\", and \\n in content par
     
     def _execute_ui_action(self, action_data):
         """
-        执行UI动作（实际实现或模拟）
+        执行UI动作
         
         Args:
             action_data (dict): 解析后的动作数据
@@ -126,65 +130,8 @@ finished(content='xxx') # Use escape characters \\', \\", and \\n in content par
         if not action_data:
             return {"status": "error", "message": "没有可执行的动作"}
         
-        action_type = action_data["type"]
-        params = action_data["params"]
-        
-        # 在此实现实际的UI操作，这里只是示例
-        # 真实实现可能需要使用pyautogui、pywinauto或其他UI自动化库
-        
-        # 模拟执行
-        # 实际应用中，应根据action_type和params执行相应操作
-        # 例如：click操作应该使用pyautogui.click()等
-        
-        return {
-            "status": "success",
-            "message": f"执行动作: {action_type}",
-            "action_type": action_type,
-            "params": params
-        }
-    
-    def _parse_coordinates(self, coord_str):
-        """
-        解析坐标字符串为实际像素坐标
-        
-        Args:
-            coord_str (str): 坐标字符串，如 "[123, 456, 789, 987]"
-            
-        Returns:
-            list: 解析后的坐标列表
-        """
-        # 移除方括号并分割坐标
-        try:
-            coords = re.findall(r'\d+', coord_str)
-            return [int(c) for c in coords]
-        except:
-            return None
-    
-    def _convert_relative_to_absolute(self, rel_coords, screen_size):
-        """
-        将相对坐标转换为绝对坐标
-        
-        Args:
-            rel_coords (list): 相对坐标
-            screen_size (tuple): 屏幕尺寸 (width, height)
-            
-        Returns:
-            list: 绝对坐标
-        """
-        width, height = screen_size
-        
-        # 按照README中的说明转换相对坐标到绝对坐标
-        # X绝对坐标 = X相对坐标 × 图像宽度 / 1000
-        # Y绝对坐标 = Y相对坐标 × 图像高度 / 1000
-        
-        abs_coords = []
-        for i in range(0, len(rel_coords), 2):
-            if i+1 < len(rel_coords):
-                x_abs = round(rel_coords[i] * width / 1000)
-                y_abs = round(rel_coords[i+1] * height / 1000)
-                abs_coords.extend([x_abs, y_abs])
-        
-        return abs_coords
+        # 调用执行器执行实际UI操作
+        return self.executor.execute(action_data)
 
 
 # 测试代码
@@ -193,7 +140,7 @@ if __name__ == "__main__":
     agent = UITarsAgent()
     
     # 简单测试
-    task = "描述一下当前的屏幕图像"
+    task = "最小化当前的IDE"
     
     print(f"处理任务: {task}")
     
