@@ -1,0 +1,220 @@
+from ui_tars_parser import UITarsParser
+from agno.agent import Agent, RunResponse
+from agno.models.deepseek import DeepSeek
+from agno.media import Image
+import os
+import time
+import pyautogui
+import json
+import re
+
+class UITarsAgent:
+    """
+    UI-TARS代理类，用于集成Agno框架和UI-TARS模型解析器
+    """
+    
+    def __init__(self, model_id=None, base_url=None):
+        """
+        初始化UI-TARS代理
+        
+        Args:
+            model_id (str, optional): 模型ID
+            base_url (str, optional): API基础URL
+        """
+        # 默认使用README中提到的模型ID和URL
+        self.model_id = model_id or "ep-20250417103958-d888s"  # TARS模型ID
+        self.base_url = base_url or "https://ark.cn-beijing.volces.com/api/v3/"
+        
+        # 获取API密钥
+        self.api_key = os.environ.get("HUOSHAN_API_KEY")
+        if not self.api_key:
+            raise ValueError("未设置HUOSHAN_API_KEY环境变量，请先设置API密钥")
+            
+        # 初始化解析器
+        self.parser = UITarsParser()
+        
+        # 初始化Agno模型和代理
+        self.model = DeepSeek(
+            id=self.model_id,
+            base_url=self.base_url,
+            temperature=0,
+            top_p=0.7
+        )
+        
+        # 创建代理实例
+        self.agent = Agent(
+            model=self.model,
+            name="我的UI助手",
+            description="基于UI-TARS的自动化UI操作助手",
+            instructions=self._get_instructions(),
+            debug_mode=True,
+            add_datetime_to_instructions=True,
+            add_history_to_messages=True,
+            num_history_responses=5,
+        )
+    
+    def _get_instructions(self):
+        """
+        获取代理指令
+        """
+        return """
+You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task.
+## Output Format
+```
+Thought: ...
+Action: ...
+```
+## Action Space
+click(start_box='[x1, y1, x2, y2]')
+left_double(start_box='[x1, y1, x2, y2]')
+right_single(start_box='[x1, y1, x2, y2]')
+drag(start_box='[x1, y1, x2, y2]', end_box='[x3, y3, x4, y4]')
+hotkey(key='')
+type(content='') #If you want to submit your input, use "\\n" at the end of `content`.
+scroll(start_box='[x1, y1, x2, y2]', direction='down or up or right or left')
+wait() #Sleep for 5s and take a screenshot to check for any changes.
+finished(content='xxx') # Use escape characters \\', \\", and \\n in content part to ensure we can parse the content in normal python string format.
+## Note
+- Use Chinese in `Thought` part.
+- Write a small plan and finally summarize your next action (with its target element) in one sentence in `Thought` part.
+## User Instruction
+        """
+    
+    def process_task(self, task, screenshot_path=None):
+        """
+        处理UI任务
+        
+        Args:
+            task (str): 用户任务描述
+            screenshot_path (str, optional): 屏幕截图路径
+            
+        Returns:
+            dict: 处理结果
+        """
+        # 准备图片参数（如果有）
+        images = None
+        if screenshot_path:
+            # 创建本地图片对象
+            images = [Image(filepath=screenshot_path)]
+        
+        # 调用Agno代理运行任务
+        response = self.agent.run(task, images=images)
+        
+        # 解析模型输出
+        parsed_result = self.parser.parse_output(response.content)
+        
+        # 执行动作
+        execution_result = self._execute_ui_action(parsed_result["action"])
+        
+        return {
+            "thought": parsed_result["thought"],
+            "action": parsed_result["action"],
+            "execution": execution_result,
+            "raw_response": response.content
+        }
+    
+    def _execute_ui_action(self, action_data):
+        """
+        执行UI动作（实际实现或模拟）
+        
+        Args:
+            action_data (dict): 解析后的动作数据
+            
+        Returns:
+            dict: 执行结果
+        """
+        if not action_data:
+            return {"status": "error", "message": "没有可执行的动作"}
+        
+        action_type = action_data["type"]
+        params = action_data["params"]
+        
+        # 在此实现实际的UI操作，这里只是示例
+        # 真实实现可能需要使用pyautogui、pywinauto或其他UI自动化库
+        
+        # 模拟执行
+        # 实际应用中，应根据action_type和params执行相应操作
+        # 例如：click操作应该使用pyautogui.click()等
+        
+        return {
+            "status": "success",
+            "message": f"执行动作: {action_type}",
+            "action_type": action_type,
+            "params": params
+        }
+    
+    def _parse_coordinates(self, coord_str):
+        """
+        解析坐标字符串为实际像素坐标
+        
+        Args:
+            coord_str (str): 坐标字符串，如 "[123, 456, 789, 987]"
+            
+        Returns:
+            list: 解析后的坐标列表
+        """
+        # 移除方括号并分割坐标
+        try:
+            coords = re.findall(r'\d+', coord_str)
+            return [int(c) for c in coords]
+        except:
+            return None
+    
+    def _convert_relative_to_absolute(self, rel_coords, screen_size):
+        """
+        将相对坐标转换为绝对坐标
+        
+        Args:
+            rel_coords (list): 相对坐标
+            screen_size (tuple): 屏幕尺寸 (width, height)
+            
+        Returns:
+            list: 绝对坐标
+        """
+        width, height = screen_size
+        
+        # 按照README中的说明转换相对坐标到绝对坐标
+        # X绝对坐标 = X相对坐标 × 图像宽度 / 1000
+        # Y绝对坐标 = Y相对坐标 × 图像高度 / 1000
+        
+        abs_coords = []
+        for i in range(0, len(rel_coords), 2):
+            if i+1 < len(rel_coords):
+                x_abs = round(rel_coords[i] * width / 1000)
+                y_abs = round(rel_coords[i+1] * height / 1000)
+                abs_coords.extend([x_abs, y_abs])
+        
+        return abs_coords
+
+
+# 测试代码
+if __name__ == "__main__":
+    print("初始化UI-TARS代理...")
+    agent = UITarsAgent()
+    
+    # 简单测试
+    task = "描述一下当前的屏幕图像"
+    
+    print(f"处理任务: {task}")
+    
+    # 是否使用截图
+    use_screenshot = True  # 设置为True启用截图
+    screenshot_path = None
+    
+    if use_screenshot:
+        try:
+            screenshot_path = "current_screen.png"
+            print(f"正在截取当前屏幕...")
+            pyautogui.screenshot(screenshot_path)
+            print(f"屏幕截图已保存至: {screenshot_path}")
+        except Exception as e:
+            print(f"截图失败: {e}")
+            use_screenshot = False
+            screenshot_path = None
+    
+    # 处理任务
+    result = agent.process_task(task, screenshot_path)
+    
+    print(f"模型思考: {result['thought']}")
+    print(f"解析的动作: {json.dumps(result['action'], ensure_ascii=False)}")
+    print(f"执行结果: {json.dumps(result['execution'], ensure_ascii=False)}") 

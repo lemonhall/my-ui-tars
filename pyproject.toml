@@ -1,0 +1,14 @@
+[project]
+name = "my-ui-tars"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "agno>=1.3.2",
+    "fastapi>=0.115.12",
+    "openai>=1.75.0",
+    "pyautogui>=0.9.54",
+    "sqlalchemy>=2.0.40",
+    "uvicorn>=0.34.1",
+]
